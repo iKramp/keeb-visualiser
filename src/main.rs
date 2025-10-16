@@ -1,4 +1,7 @@
+use std::io::{BufRead, BufReader};
 use std::num::NonZero;
+use std::process::{ChildStdout, Command, Stdio};
+use std::sync::{Arc, Mutex};
 
 use ab_glyph::{Font, FontArc, Glyph, PxScale, point};
 use fontdb::Database;
@@ -72,10 +75,22 @@ fn main() {
 
     let keymap = keymap_c_parser::parse_c_source(&keymap_c);
 
-    render_main(key_positions, keymap, (width as usize, height as usize));
+    let mut child = Command::new("qmk")
+        .arg("console")
+        .stdout(Stdio::piped()) // capture stdout
+        .stderr(Stdio::piped()) // optional: capture stderr too
+        .spawn().unwrap(); // spawn the process
+
+    let stdout = child.stdout.take().expect("Failed to capture stdout");
+    let reader = BufReader::new(stdout);
+
+
+    render_main(key_positions, keymap, reader, (width as usize, height as usize));
+
+    child.kill().unwrap();
 }
 
-fn render_main(key_positions: Vec<KeyPosition>, layers: Vec<Layer>, size: (usize, usize)) {
+fn render_main(key_positions: Vec<KeyPosition>, layers: Vec<Layer>, reader: BufReader<ChildStdout>, size: (usize, usize)) {
     let event_loop = EventLoop::new().unwrap();
 
     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
@@ -89,13 +104,22 @@ fn render_main(key_positions: Vec<KeyPosition>, layers: Vec<Layer>, size: (usize
 
     let font = load_font();
 
+    let active_layers = Arc::new(Mutex::new([false; 8]));
+
+    let _handle = std::thread::spawn({
+        let active_layers = active_layers.clone();
+        move || {
+            read_console(reader, active_layers);
+        }
+    });
+
     let mut app = App {
         key_positions,
         size,
         layers,
         font,
         window: None,
-        current_layer: 0,
+        current_layer: active_layers,
     };
     let _ = event_loop.run_app(&mut app);
 }
@@ -105,7 +129,7 @@ struct App {
     window: Option<Window>,
     key_positions: Vec<KeyPosition>,
     layers: Vec<Layer>,
-    current_layer: usize,
+    current_layer: Arc<Mutex<[bool; 8]>>,
     font: FontArc,
 }
 
@@ -147,21 +171,33 @@ impl ApplicationHandler for App {
                 pixmap.fill(Color::from_rgba8(30, 30, 30, 255));
                 let key_scale = PxScale::from(30.0);
 
-                for key in self.key_positions.iter().zip(self.layers[self.current_layer].keys.iter()) {
+                let max_layer = self.layers.len();
+
+                for key in self.key_positions.iter().enumerate() {
                     let rect = tiny_skia::Rect::from_xywh(
-                        key.0.x * KEY_SPACING,
-                        key.0.y * KEY_SPACING,
+                        key.1.x * KEY_SPACING,
+                        key.1.y * KEY_SPACING,
                         KEY_WIDTH,
                         KEY_WIDTH,
                     )
                     .unwrap();
                     pixmap.fill_rect(rect, &paint, tiny_skia::Transform::identity(), None);
-                    key.1.render(key.0.x * KEY_SPACING, key.0.y * KEY_SPACING, &mut pixmap, &self.font.clone(), key_scale, Color::from_rgba8(255, 255, 255, 255));
+                    
+                    for i in (0..8.min(max_layer)).rev() {
+                        if !self.current_layer.lock().unwrap()[i] {
+                            continue;
+                        }
+                        let key_ = &self.layers[i].keys[key.0];
+                        let res = key_.render(key.1.x * KEY_SPACING, key.1.y * KEY_SPACING, &mut pixmap, &self.font.clone(), key_scale, Color::from_rgba8(255, 255, 255, 255));
+                        if res {
+                            break;
+                        }
+                    }
                 }
 
                 let layer_scale = PxScale::from(20.0);
 
-                let text = &self.layers[self.current_layer].name;
+                let text = &self.layers[self.current_layer.lock().unwrap().iter().enumerate().rev().find(|e| *e.1).map_or(0, |e| e.0).min(max_layer)].name;
                 draw_text(
                     &mut pixmap,
                     text,
@@ -194,6 +230,28 @@ impl ApplicationHandler for App {
             }
             _ => (),
         }
+    }
+}
+
+pub fn read_console(mut reader: BufReader<ChildStdout>, active_layers: Arc<Mutex<[bool; 8]>>) {
+    active_layers.lock().unwrap()[0] = true; // always show base layer
+    let mut buf = String::new();
+    while let Ok(chars_read) = reader.read_line(&mut buf) {
+        if chars_read == 0 {
+            break; // EOF reached
+        }
+        if !buf.contains("LAYERS:") {
+            buf.clear();
+            continue;
+        }
+
+        let layer_str = buf.trim().split("LAYERS:").nth(1).unwrap().trim();
+        for i in 0..8 {
+            active_layers.lock().unwrap()[i] = layer_str.chars().nth(i).unwrap() == '1';
+        }
+        active_layers.lock().unwrap()[0] = true; // always show base layer
+        buf.clear();
+        
     }
 }
 

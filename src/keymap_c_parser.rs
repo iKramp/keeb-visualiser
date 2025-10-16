@@ -329,9 +329,12 @@ impl Keycode {
         }
     }
 
-    pub fn render(&self, px: f32, py: f32, pixmap: &mut Pixmap, font: &FontArc, scale: PxScale, color: Color) {
+    pub fn render(&self, px: f32, py: f32, pixmap: &mut Pixmap, font: &FontArc, scale: PxScale, color: Color) -> bool {
         match self {
-            Self::NONE | Self::TRANSPARENT => {}
+            Self::TRANSPARENT => {
+                return false;
+            }
+            Self::NONE => {},
 
             Self::KC_A => Self::render_simple(px, py, "a", pixmap, font, scale, color),
             Self::KC_B => Self::render_simple(px, py, "b", pixmap, font, scale, color),
@@ -491,8 +494,8 @@ impl Keycode {
                 hold.render(px, py - 10.0, pixmap, font, scale, color);
                 tap.render(px, py + 15.0, pixmap, font, scale, color);
             }
-            _ => Self::render_two_chars(px, py, "<>", pixmap, font, scale, color),
-        }
+        };
+        return true;
     }
 
     //for single character keys
