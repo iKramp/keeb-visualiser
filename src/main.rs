@@ -10,6 +10,7 @@ use tiny_skia::{Color, Paint, Pixmap, Transform};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::platform::wayland::WindowAttributesExtWayland;
 use winit::window::{Window, WindowId};
 
 use crate::keymap_c_parser::Layer;
@@ -38,6 +39,7 @@ fn main() {
         .map(|k| {
             let x = k["x"].as_f32().unwrap();
             let y = k["y"].as_f32().unwrap();
+            println!("Key position: x={}, y={}", x, y);
             KeyPosition { x, y }
         })
         .collect::<Vec<_>>();
@@ -142,6 +144,7 @@ impl ApplicationHandler for App {
             self.size.0 as u32,
             self.size.1 as u32,
         ));
+        attrs = attrs.with_title("Keyboard_visualizer");
         self.window = Some(event_loop.create_window(attrs).unwrap());
     }
 
