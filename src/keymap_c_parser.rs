@@ -189,6 +189,7 @@ pub enum Keycode {
     KC_COMM,
     KC_DOT,
     KC_SLASH,
+    KC_SCLN,
 
     MOD_LCTL,
     KC_BSPC,
@@ -282,6 +283,7 @@ impl Keycode {
             "KC_COMM" => { Keycode::KC_COMM }
             "KC_DOT" => { Keycode::KC_DOT }
             "KC_SLASH" => { Keycode::KC_SLASH }
+            "KC_SCLN" => { Keycode::KC_SCLN }
 
             "MOD_LCTL" => { Keycode::MOD_LCTL }
             "KC_BSPC" => { Keycode::KC_BSPC }
@@ -402,6 +404,7 @@ impl Keycode {
             Self::KC_COMM => Self::render_simple(px, py, ",", pixmap, font, scale, color),
             Self::KC_DOT => Self::render_simple(px, py, ".", pixmap, font, scale, color),
             Self::KC_SLASH => Self::render_simple(px, py, "/", pixmap, font, scale, color),
+            Self::KC_SCLN => Self::render_simple(px, py, ";", pixmap, font, scale, color),
             
             Self::MOD_LCTL => Self::render_three_chars(px, py, "Ctl", pixmap, font, scale, color),
             Self::KC_BSPC =>  Self::render_three_chars(px, py, "Bsp", pixmap, font, scale, color),
@@ -468,6 +471,7 @@ impl Keycode {
                     Self::KC_COMM => Self::render_simple(px, py, "<", pixmap, font, scale, color),
                     Self::KC_DOT => Self::render_simple(px, py, ">", pixmap, font, scale, color),
                     Self::KC_SLASH => Self::render_simple(px, py, "?", pixmap, font, scale, color),
+                    Self::KC_SCLN => Self::render_simple(px, py, ":", pixmap, font, scale, color),
 
                     _ => Self::render_two_chars(px, py, "<>", pixmap, font, scale, color),
                 }
